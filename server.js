@@ -21,7 +21,6 @@ let botStatus = {
   error: null
 };
 
-// API Endpoint trả về thông tin trạng thái Bot
 app.get('/api/status', (req, res) => {
   const mem = process.memoryUsage();
   botStatus.memory = `${Math.round(mem.rss / 1024 / 1024)}MB`;
@@ -32,7 +31,6 @@ app.get('/api/status', (req, res) => {
   });
 });
 
-// API Chụp ảnh màn hình trực tiếp
 app.get('/api/screenshot', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
@@ -46,7 +44,6 @@ app.get('/api/screenshot', async (req, res) => {
   }
 });
 
-// API Điều khiển: Nhấp chuột vào tọa độ (x, y) trên game
 app.post('/api/click', async (req, res) => {
   try {
     const { x, y } = req.body;
@@ -61,7 +58,6 @@ app.post('/api/click', async (req, res) => {
   }
 });
 
-// API Điều khiển: Gửi phím bấm (Space, Enter, Esc, 1, 2, 3...)
 app.post('/api/key', async (req, res) => {
   try {
     const { key } = req.body;
@@ -76,12 +72,27 @@ app.post('/api/key', async (req, res) => {
   }
 });
 
-// API Điều khiển: Load lại trang game
+// API Tải lại game và re-inject localStorage
 app.post('/api/reload', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
-      console.log('[REMOTE CONTROL] Reloading game page...');
-      await pageInstance.reload({ waitUntil: 'domcontentloaded' });
+      console.log('[REMOTE CONTROL] Reloading game page & re-injecting storage...');
+      await loadLocalStorage(pageInstance);
+      await pageInstance.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
+      
+      // Inject lại localStorage trực tiếp
+      if (fs.existsSync(STORAGE_PATH)) {
+        const storageData = fs.readFileSync(STORAGE_PATH, 'utf8');
+        const storage = JSON.parse(storageData);
+        if (storage && Object.keys(storage).length > 0 && !storage.EXAMPLE_KEY) {
+          await pageInstance.evaluate((data) => {
+            for (const [key, value] of Object.entries(data)) {
+              localStorage.setItem(key, value);
+            }
+          }, storage);
+        }
+      }
+
       return res.json({ success: true });
     }
     res.status(503).json({ error: 'Page not ready' });
@@ -90,7 +101,6 @@ app.post('/api/reload', async (req, res) => {
   }
 });
 
-// Giao diện Web Remote Control chuyên nghiệp
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -107,7 +117,7 @@ app.get('/', (req, res) => {
         h1 { font-size: 1.3rem; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
         .badge { background: #22c55e; color: #000; font-weight: bold; padding: 4px 10px; borderRadius: 20px; font-size: 0.8rem; }
         .screen-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 15px; text-align: center; }
-        .img-container { position: relative; display: inline-block; width: 100%; max-width: 1280px; margin-top: 10px; background: #000; border-radius: 8px; overflow: hidden; cursor: crosshair; }
+        .img-container { position: relative; display: inline-block; width: 100%; max-width: 1280px; margin-top: 10px; background: #000; border-radius: 8px; overflow: hidden; cursor: crosshair; min-height: 250px; }
         .img-container img { width: 100%; height: auto; display: block; }
         .controls { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center; }
         button { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
@@ -156,7 +166,7 @@ app.get('/', (req, res) => {
             <button class="secondary" onclick="sendKey('Space')">⌨️ Phím Space</button>
             <button class="secondary" onclick="sendKey('Enter')">⌨️ Phím Enter</button>
             <button class="secondary" onclick="sendKey('Escape')">⌨️ Phím Esc</button>
-            <button class="danger" onclick="reloadGame()">🔁 Reload Game</button>
+            <button class="danger" onclick="reloadGame()">🔁 Re-login & Reload Game</button>
           </div>
         </div>
       </div>
@@ -183,7 +193,6 @@ app.get('/', (req, res) => {
           const clickX = e.clientX - rect.left;
           const clickY = e.clientY - rect.top;
 
-          // Scale vị trí click về viewport chuẩn 1280x720 của Puppeteer
           const scaledX = Math.round((clickX / rect.width) * 1280);
           const scaledY = Math.round((clickY / rect.height) * 720);
 
@@ -209,9 +218,9 @@ app.get('/', (req, res) => {
         }
 
         async function reloadGame() {
-          if (confirm('Bạn có chắc chắn muốn load lại trang game?')) {
+          if (confirm('Bạn có chắc chắn muốn nạp lại tài khoản và kết nối lại game?')) {
             await fetch('/api/reload', { method: 'POST' });
-            setTimeout(refreshScreen, 2000);
+            setTimeout(refreshScreen, 2500);
           }
         }
 
