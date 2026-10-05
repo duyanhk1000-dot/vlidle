@@ -54,7 +54,6 @@ async function loadLocalStorage(page) {
       const storage = JSON.parse(storageData);
 
       if (storage && Object.keys(storage).length > 0 && !storage.EXAMPLE_KEY) {
-        // Evaluate on new document đảm bảo localStorage được nạp ngay trước khi các script của game chạy
         await page.evaluateOnNewDocument((data) => {
           for (const [key, value] of Object.entries(data)) {
             localStorage.setItem(key, value);
@@ -76,9 +75,11 @@ async function startBot() {
   try {
     console.log('[BOT] Launching Puppeteer browser...');
     
+    const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
+
     browserInstance = await puppeteer.launch({
       headless: 'new',
-      executablePath: process.env.PUPPETEER_EXEC_PATH || null,
+      executablePath: execPath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -109,7 +110,7 @@ async function startBot() {
       timeout: 60000
     });
 
-    // Nếu đã load trang, thực thi lại 1 lần nữa trong trang nếu cần thiết
+    // Re-verify localStorage injection after navigation
     if (fs.existsSync(STORAGE_PATH)) {
       const storageData = fs.readFileSync(STORAGE_PATH, 'utf8');
       const storage = JSON.parse(storageData);
