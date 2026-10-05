@@ -15,11 +15,14 @@ let botStatus = {
   status: 'Initializing',
   lastCheck: null,
   uptimeStarted: new Date().toISOString(),
+  memory: null,
   error: null
 };
 
 // Health-check Endpoint cho Render và UptimeRobot
 app.get('/', (req, res) => {
+  const mem = process.memoryUsage();
+  botStatus.memory = `${Math.round(mem.rss / 1024 / 1024)}MB`;
   res.json({
     service: 'VolamIdle 24/7 Runner',
     botStatus: botStatus,
@@ -73,7 +76,7 @@ async function loadLocalStorage(page) {
 
 async function startBot() {
   try {
-    console.log('[BOT] Launching Puppeteer browser...');
+    console.log('[BOT] Launching Puppeteer browser with memory optimizations...');
     
     const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
 
@@ -85,10 +88,15 @@ async function startBot() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
-        '--single-process',
-        '--disable-extensions'
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-breakpad',
+        '--disable-component-extensions-with-background-pages',
+        '--js-flags=--max-old-space-size=256'
       ]
     });
 
@@ -106,11 +114,11 @@ async function startBot() {
 
     console.log(`[BOT] Navigating to game: ${GAME_URL}`);
     await pageInstance.goto(GAME_URL, {
-      waitUntil: 'networkidle2',
-      timeout: 60000
+      waitUntil: 'domcontentloaded',
+      timeout: 45000
     });
 
-    // Re-verify localStorage injection after navigation
+    // Sau khi load xong, đảm bảo nạp localStorage vào trang
     if (fs.existsSync(STORAGE_PATH)) {
       const storageData = fs.readFileSync(STORAGE_PATH, 'utf8');
       const storage = JSON.parse(storageData);
@@ -132,9 +140,11 @@ async function startBot() {
       try {
         if (pageInstance && !pageInstance.isClosed()) {
           const title = await pageInstance.title();
+          const mem = process.memoryUsage();
           botStatus.lastCheck = new Date().toISOString();
           botStatus.status = 'Running';
-          console.log(`[KEEP-ALIVE ${new Date().toLocaleTimeString()}] Page title: "${title}" | Bot active.`);
+          botStatus.memory = `${Math.round(mem.rss / 1024 / 1024)}MB`;
+          console.log(`[KEEP-ALIVE ${new Date().toLocaleTimeString()}] Page title: "${title}" | RAM: ${botStatus.memory} | Bot active.`);
         }
       } catch (err) {
         console.error('[KEEP-ALIVE ERROR]', err.message);
