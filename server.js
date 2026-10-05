@@ -19,11 +19,11 @@ let botStatus = {
   error: null
 };
 
-// Health-check Endpoint cho Render và UptimeRobot
+// Health-check Endpoint - Trả về 200 OK ngay lập tức cho Render Health Check
 app.get('/', (req, res) => {
   const mem = process.memoryUsage();
   botStatus.memory = `${Math.round(mem.rss / 1024 / 1024)}MB`;
-  res.json({
+  res.status(200).json({
     service: 'VolamIdle 24/7 Runner',
     botStatus: botStatus,
     timestamp: new Date().toISOString()
@@ -42,11 +42,11 @@ async function loadCookies(page) {
           return validCookie;
         });
         await page.setCookie(...sanitizedCookies);
-        console.log(`[COOKIE] Successfully injected ${sanitizedCookies.length} cookies.`);
+        console.log(`[COOKIE] Injected ${sanitizedCookies.length} cookies.`);
       }
     }
   } catch (err) {
-    console.error('[COOKIE ERROR] Failed to inject cookies:', err.message);
+    console.error('[COOKIE ERROR]', err.message);
   }
 }
 
@@ -63,20 +63,16 @@ async function loadLocalStorage(page) {
           }
         }, storage);
         console.log(`[LOCALSTORAGE] Configured ${Object.keys(storage).length} keys for auto-injection.`);
-      } else {
-        console.log('[LOCALSTORAGE] Warning: storage.json is empty or using template.');
       }
-    } else {
-      console.log('[LOCALSTORAGE] storage.json not found.');
     }
   } catch (err) {
-    console.error('[LOCALSTORAGE ERROR] Failed to inject localStorage:', err.message);
+    console.error('[LOCALSTORAGE ERROR]', err.message);
   }
 }
 
 async function startBot() {
   try {
-    console.log('[BOT] Launching Puppeteer browser with memory optimizations...');
+    console.log('[BOT] Launching Puppeteer browser...');
     
     const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
 
@@ -88,14 +84,8 @@ async function startBot() {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--disable-accelerated-2d-canvas',
         '--no-first-run',
-        '--no-zygote',
         '--disable-extensions',
-        '--disable-background-networking',
-        '--disable-background-timer-throttling',
-        '--disable-breakpad',
-        '--disable-component-extensions-with-background-pages',
         '--js-flags=--max-old-space-size=256'
       ]
     });
@@ -108,17 +98,15 @@ async function startBot() {
 
     await pageInstance.setViewport({ width: 1280, height: 720 });
 
-    // Inject Cookie & LocalStorage trước khi truy cập trang web
     await loadCookies(pageInstance);
     await loadLocalStorage(pageInstance);
 
     console.log(`[BOT] Navigating to game: ${GAME_URL}`);
     await pageInstance.goto(GAME_URL, {
       waitUntil: 'domcontentloaded',
-      timeout: 45000
+      timeout: 60000
     });
 
-    // Sau khi load xong, đảm bảo nạp localStorage vào trang
     if (fs.existsSync(STORAGE_PATH)) {
       const storageData = fs.readFileSync(STORAGE_PATH, 'utf8');
       const storage = JSON.parse(storageData);
@@ -135,7 +123,6 @@ async function startBot() {
     botStatus.lastCheck = new Date().toISOString();
     console.log('[BOT] Successfully loaded game page!');
 
-    // Vòng lặp keep-alive và log định kỳ (mỗi 3 phút)
     setInterval(async () => {
       try {
         if (pageInstance && !pageInstance.isClosed()) {
@@ -144,7 +131,7 @@ async function startBot() {
           botStatus.lastCheck = new Date().toISOString();
           botStatus.status = 'Running';
           botStatus.memory = `${Math.round(mem.rss / 1024 / 1024)}MB`;
-          console.log(`[KEEP-ALIVE ${new Date().toLocaleTimeString()}] Page title: "${title}" | RAM: ${botStatus.memory} | Bot active.`);
+          console.log(`[KEEP-ALIVE ${new Date().toLocaleTimeString()}] Page title: "${title}" | RAM: ${botStatus.memory} | Active.`);
         }
       } catch (err) {
         console.error('[KEEP-ALIVE ERROR]', err.message);
@@ -161,8 +148,11 @@ async function startBot() {
 }
 
 app.listen(PORT, () => {
-  console.log(`[SERVER] Express server running on port ${PORT}`);
-  startBot();
+  console.log(`[SERVER] Express server running instantly on port ${PORT}`);
+  // Trì hoãn 5 giây để Render hoàn tất Health Check kiểm tra Server trước khi mở Chrome nặng
+  setTimeout(() => {
+    startBot();
+  }, 5000);
 });
 
 process.on('SIGTERM', async () => {
