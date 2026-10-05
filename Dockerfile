@@ -1,12 +1,16 @@
-FROM node:18-bullseye-slim
+FROM node:20-slim
 
-# Cài đặt Google Chrome Stable và các font chữ hệ thống cần thiết trên Linux
-RUN apt-get update \
-    && apt-get install -y wget gnupg \
-    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
-    && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 --no-install-recommends \
+# Cài đặt trực tiếp Google Chrome từ deb package chính thức của Google
+RUN apt-get update && apt-get install -y \
+    wget \
+    ca-certificates \
+    fonts-liberation \
+    libnss3 \
+    xdg-utils \
+    --no-install-recommends \
+    && wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && dpkg -i google-chrome-stable_current_amd64.deb || apt-get install -fy \
+    && rm google-chrome-stable_current_amd64.deb \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -18,7 +22,7 @@ RUN npm install
 # Copy toàn bộ code dự án
 COPY . .
 
-# Khai báo biến môi trường cho Puppeteer dùng Chrome hệ thống
+# Khai báo biến môi trường cho Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 
