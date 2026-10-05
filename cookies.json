@@ -1,0 +1,12 @@
+[
+  {
+    "name": "PASTE_YOUR_COOKIE_NAME_HERE",
+    "value": "PASTE_YOUR_COOKIE_VALUE_HERE",
+    "domain": ".pages.dev",
+    "path": "/",
+    "expires": -1,
+    "httpOnly": false,
+    "secure": true,
+    "sameSite": "Lax"
+  }
+]
