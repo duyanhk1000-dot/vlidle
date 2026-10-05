@@ -9,7 +9,6 @@ const GAME_URL = 'https://volamidle.pages.dev/';
 const COOKIES_PATH = path.join(__dirname, 'cookies.json');
 const STORAGE_PATH = path.join(__dirname, 'storage.json');
 
-// Độ phân giải nén tối ưu chuẩn Mobile (640x360 - 16:9) giúp ảnh siêu nhẹ ~5KB - 8KB
 const VIEWPORT_WIDTH = 640;
 const VIEWPORT_HEIGHT = 360;
 
@@ -25,6 +24,39 @@ let botStatus = {
   account: null,
   error: null
 };
+
+// Hàm tự động điền ID/Pass và bấm Đăng Nhập nếu xuất hiện bảng đăng nhập
+async function autoLoginIfNeeded(page) {
+  try {
+    if (!page || page.isClosed()) return;
+
+    await page.evaluate(() => {
+      try {
+        const inputs = Array.from(document.querySelectorAll('input'));
+        if (inputs.length >= 2) {
+          const userField = inputs[0];
+          const passField = inputs[1];
+
+          userField.value = 'aaaaa';
+          userField.dispatchEvent(new Event('input', { bubbles: true }));
+          userField.dispatchEvent(new Event('change', { bubbles: true }));
+
+          passField.value = '123123';
+          passField.dispatchEvent(new Event('input', { bubbles: true }));
+          passField.dispatchEvent(new Event('change', { bubbles: true }));
+
+          const buttons = Array.from(document.querySelectorAll('button'));
+          const loginBtn = buttons.find(b => (b.innerText || b.textContent || '').includes('Đăng nhập'));
+          if (loginBtn) {
+            loginBtn.click();
+          }
+        }
+      } catch(e) {}
+    });
+  } catch (err) {
+    console.error('[AUTO-LOGIN ERROR]', err.message);
+  }
+}
 
 // Hàm trích xuất chỉ số nhân vật từ localStorage
 async function getGameAccountStats(page) {
@@ -95,7 +127,6 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
-// API Chụp ảnh màn hình nén JPEG độ phân giải 640x360 siêu nhẹ (~5KB - 8KB, phản hồi tức thì 0.1s)
 app.get('/api/screenshot', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
@@ -140,6 +171,20 @@ app.post('/api/key', async (req, res) => {
   }
 });
 
+// API Kích hoạt tự động điền ID aaaaa / Pass 123123
+app.post('/api/autologin', async (req, res) => {
+  try {
+    if (pageInstance && !pageInstance.isClosed()) {
+      console.log('[REMOTE CONTROL] Triggering Auto-Login for aaaaa / 123123...');
+      await autoLoginIfNeeded(pageInstance);
+      return res.json({ success: true });
+    }
+    res.status(503).json({ error: 'Page not ready' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/reload', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
@@ -158,6 +203,10 @@ app.post('/api/reload', async (req, res) => {
           }, storage);
         }
       }
+
+      setTimeout(() => {
+        autoLoginIfNeeded(pageInstance);
+      }, 2000);
 
       return res.json({ success: true });
     }
@@ -188,6 +237,8 @@ app.get('/', (req, res) => {
         .controls { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center; }
         button { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
         button:hover { background: #1d4ed8; transform: translateY(-1px); }
+        button.success { background: #16a34a; }
+        button.success:hover { background: #15803d; }
         button.danger { background: #dc2626; }
         button.danger:hover { background: #b91c1c; }
         button.secondary { background: #475569; }
@@ -237,7 +288,7 @@ app.get('/', (req, res) => {
         </div>
 
         <div class="screen-card">
-          <div class="hint">⚡ Nạp ảnh Mobile (640x360 - ~6KB) siêu nhanh 0.1s. Click trực tiếp lên ảnh để điều khiển game!</div>
+          <div class="hint">⚡ Nạp ảnh Mobile (640x360). Click trực tiếp lên ảnh để điều khiển game!</div>
           <div class="img-container" onclick="handleClick(event)">
             <img id="gameScreen" src="/api/screenshot" alt="Game Screen Live">
           </div>
@@ -258,6 +309,7 @@ app.get('/', (req, res) => {
           </div>
 
           <div class="controls">
+            <button class="success" onclick="triggerAutoLogin()">🔑 Tự Đăng Nhập (aaaaa / 123123)</button>
             <button onclick="refreshScreen()">🔄 Làm mới ảnh & chỉ số</button>
             <button class="secondary" onclick="sendKey('Space')">⌨️ Phím Space</button>
             <button class="secondary" onclick="sendKey('Enter')">⌨️ Phím Enter</button>
@@ -294,12 +346,16 @@ app.get('/', (req, res) => {
           } catch(e){}
         }
 
+        async function triggerAutoLogin() {
+          await fetch('/api/autologin', { method: 'POST' });
+          setTimeout(refreshScreen, 1000);
+        }
+
         async function handleClick(e) {
           const rect = gameImg.getBoundingClientRect();
           const clickX = e.clientX - rect.left;
           const clickY = e.clientY - rect.top;
 
-          // Scale vị trí click về Viewport Mobile 640x360
           const scaledX = Math.round((clickX / rect.width) * ${VIEWPORT_WIDTH});
           const scaledY = Math.round((clickY / rect.height) * ${VIEWPORT_HEIGHT});
 
@@ -415,7 +471,6 @@ async function startBot() {
 
     pageInstance = await browserInstance.newPage();
 
-    // Giả lập Mobile User-Agent & Viewport 640x360
     await pageInstance.setUserAgent(
       'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
     );
@@ -443,6 +498,11 @@ async function startBot() {
       }
     }
 
+    // Tự động kiểm tra và nhập ID/Pass ngay khi vừa nạp xong trang
+    setTimeout(() => {
+      autoLoginIfNeeded(pageInstance);
+    }, 2000);
+
     botStatus.status = 'Running';
     botStatus.lastCheck = new Date().toISOString();
     console.log('[BOT] Successfully loaded game page!');
@@ -450,6 +510,9 @@ async function startBot() {
     setInterval(async () => {
       try {
         if (pageInstance && !pageInstance.isClosed()) {
+          // Tự động kiểm tra xem bảng đăng nhập có xuất hiện không và bấm Đăng nhập
+          await autoLoginIfNeeded(pageInstance);
+
           const title = await pageInstance.title();
           const mem = process.memoryUsage();
           const accStats = await getGameAccountStats(pageInstance);
@@ -467,7 +530,7 @@ async function startBot() {
         botStatus.status = 'Error';
         botStatus.error = err.message;
       }
-    }, 3 * 60 * 1000);
+    }, 15 * 1000); // Kiểm tra định kỳ 15 giây/lần
 
   } catch (error) {
     console.error('[BOT FATAL ERROR]', error.message);
