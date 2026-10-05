@@ -9,6 +9,10 @@ const GAME_URL = 'https://volamidle.pages.dev/';
 const COOKIES_PATH = path.join(__dirname, 'cookies.json');
 const STORAGE_PATH = path.join(__dirname, 'storage.json');
 
+// Độ phân giải nén tối ưu chuẩn Mobile (640x360 - 16:9) giúp ảnh siêu nhẹ ~5KB - 8KB
+const VIEWPORT_WIDTH = 640;
+const VIEWPORT_HEIGHT = 360;
+
 app.use(express.json());
 
 let browserInstance = null;
@@ -91,13 +95,13 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
-// API Chụp ảnh màn hình nén JPEG chất lượng 50% (siêu nhẹ ~15KB - 25KB, tải nhanh gấp 10 lần)
+// API Chụp ảnh màn hình nén JPEG độ phân giải 640x360 siêu nhẹ (~5KB - 8KB, phản hồi tức thì 0.1s)
 app.get('/api/screenshot', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
       const screenshot = await pageInstance.screenshot({
         type: 'jpeg',
-        quality: 50
+        quality: 45
       });
       res.contentType('image/jpeg');
       return res.send(screenshot);
@@ -174,12 +178,12 @@ app.get('/', (req, res) => {
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; }
-        .container { max-width: 1100px; margin: 0 auto; }
+        .container { max-width: 900px; margin: 0 auto; }
         header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid #334155; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         h1 { font-size: 1.3rem; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
         .badge { background: #22c55e; color: #000; font-weight: bold; padding: 4px 10px; borderRadius: 20px; font-size: 0.8rem; }
         .screen-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 15px; text-align: center; }
-        .img-container { position: relative; display: inline-block; width: 100%; max-width: 1280px; margin-top: 10px; background: #000; border-radius: 8px; overflow: hidden; cursor: crosshair; min-height: 250px; }
+        .img-container { position: relative; display: inline-block; width: 100%; max-width: 640px; margin-top: 10px; background: #000; border-radius: 8px; overflow: hidden; cursor: crosshair; min-height: 200px; }
         .img-container img { width: 100%; height: auto; display: block; }
         .controls { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center; }
         button { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
@@ -189,13 +193,13 @@ app.get('/', (req, res) => {
         button.secondary { background: #475569; }
         button.secondary:hover { background: #334155; }
         .hint { color: #94a3b8; font-size: 0.85rem; margin-top: 8px; }
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 15px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 15px; }
         .stat-card { background: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; font-size: 0.9rem; }
         .stat-title { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 4px; }
         .stat-value { font-weight: bold; font-size: 1.1rem; color: #38bdf8; }
         .stat-value.gold { color: #fbbf24; }
         .stat-value.level { color: #a7f3d0; }
-        select { background: #334155; color: white; border: 1px solid #475569; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; }
+        select { background: #334155; color: white; border: 1px solid #475569; padding: 6px 12px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; }
       </style>
     </head>
     <body>
@@ -219,7 +223,7 @@ app.get('/', (req, res) => {
             <div class="stat-value" id="accStage">--</div>
           </div>
           <div class="stat-card">
-            <div class="stat-title">💰 Ngân Lượng (Vàng)</div>
+            <div class="stat-title">💰 Ngân Lượng</div>
             <div class="stat-value gold" id="accGold">--</div>
           </div>
           <div class="stat-card">
@@ -233,18 +237,22 @@ app.get('/', (req, res) => {
         </div>
 
         <div class="screen-card">
-          <div class="hint">⚡ Ảnh nén JPEG siêu nhẹ (~20KB) - Load mượt 2 giây/tấm. Click thẳng vào ảnh để điều khiển game!</div>
+          <div class="hint">⚡ Nạp ảnh Mobile (640x360 - ~6KB) siêu nhanh 0.1s. Click trực tiếp lên ảnh để điều khiển game!</div>
           <div class="img-container" onclick="handleClick(event)">
             <img id="gameScreen" src="/api/screenshot" alt="Game Screen Live">
           </div>
           
-          <div style="margin-top: 10px; font-size: 0.85rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 10px;">
-            <label><input type="checkbox" id="autoRefresh" checked> Tự động tải ảnh</label>
-            <label>Tần suất: 
+          <div style="margin-top: 12px; font-size: 0.85rem; color: #94a3b8; display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;">
+            <label style="display: flex; align-items: center; gap: 4px;">
+              <input type="checkbox" id="autoRefresh" checked> Tự động nạp ảnh
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px;">
+              Tốc độ nạp: 
               <select id="refreshInterval" onchange="changeInterval()">
-                <option value="2000" selected>⚡ Mỗi 2 giây (Siêu mượt)</option>
-                <option value="3000">🚀 Mỗi 3 giây</option>
-                <option value="5000">🐢 Mỗi 5 giây</option>
+                <option value="500">⚡⚡ 0.5 Giây (Siêu tốc / Livestream)</option>
+                <option value="1000" selected>⚡ 1.0 Giây (Rất mượt)</option>
+                <option value="3000">🚀 3.0 Giây (Chuẩn)</option>
+                <option value="5000">🐢 5.0 Giây (Tiết kiệm)</option>
               </select>
             </label>
           </div>
@@ -291,8 +299,9 @@ app.get('/', (req, res) => {
           const clickX = e.clientX - rect.left;
           const clickY = e.clientY - rect.top;
 
-          const scaledX = Math.round((clickX / rect.width) * 1280);
-          const scaledY = Math.round((clickY / rect.height) * 720);
+          // Scale vị trí click về Viewport Mobile 640x360
+          const scaledX = Math.round((clickX / rect.width) * ${VIEWPORT_WIDTH});
+          const scaledY = Math.round((clickY / rect.height) * ${VIEWPORT_HEIGHT});
 
           try {
             await fetch('/api/click', {
@@ -300,7 +309,7 @@ app.get('/', (req, res) => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ x: scaledX, y: scaledY })
             });
-            setTimeout(refreshScreen, 400);
+            setTimeout(refreshScreen, 300);
           } catch(err) {
             alert('Click error: ' + err.message);
           }
@@ -312,7 +321,7 @@ app.get('/', (req, res) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key })
           });
-          setTimeout(refreshScreen, 400);
+          setTimeout(refreshScreen, 300);
         }
 
         async function reloadGame() {
@@ -324,7 +333,7 @@ app.get('/', (req, res) => {
 
         function startAutoRefresh() {
           if (refreshTimer) clearInterval(refreshTimer);
-          const ms = Number(document.getElementById('refreshInterval').value) || 2000;
+          const ms = Number(document.getElementById('refreshInterval').value) || 1000;
           refreshTimer = setInterval(() => {
             if (document.getElementById('autoRefresh').checked) {
               refreshScreen();
@@ -386,7 +395,7 @@ async function loadLocalStorage(page) {
 
 async function startBot() {
   try {
-    console.log('[BOT] Launching Puppeteer browser...');
+    console.log('[BOT] Launching Puppeteer browser with Mobile Viewport...');
     
     const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
 
@@ -406,11 +415,12 @@ async function startBot() {
 
     pageInstance = await browserInstance.newPage();
 
+    // Giả lập Mobile User-Agent & Viewport 640x360
     await pageInstance.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+      'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
     );
 
-    await pageInstance.setViewport({ width: 1280, height: 720 });
+    await pageInstance.setViewport({ width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT });
 
     await loadCookies(pageInstance);
     await loadLocalStorage(pageInstance);
