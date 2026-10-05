@@ -18,12 +18,73 @@ let botStatus = {
   lastCheck: null,
   uptimeStarted: new Date().toISOString(),
   memory: null,
+  account: null,
   error: null
 };
 
-app.get('/api/status', (req, res) => {
+// Hàm trích xuất chỉ số nhân vật từ localStorage trong Puppeteer
+async function getGameAccountStats(page) {
+  try {
+    if (!page || page.isClosed()) return null;
+    const stats = await page.evaluate(() => {
+      try {
+        const rawData = localStorage.getItem('jxidle_2') || localStorage.getItem('jxidle');
+        if (!rawData) return null;
+        const parsed = JSON.parse(rawData);
+        const data = parsed.d ? JSON.parse(parsed.d) : parsed;
+        
+        const name = data.name || 'N/A';
+        const lvl = data.lvl || 0;
+        const xp = Math.round(data.xp || 0);
+        const gold = Math.round(data.gold || 0);
+        const fac = data.fac || 'N/A';
+        const stage = data.stage || 0;
+        const kills = data.totalKills || (data.stat ? data.stat.kills : 0);
+
+        const facMap = {
+          tianren: 'Thiên Nhẫn',
+          tianwang: 'Thiên Vương',
+          shaolin: 'Thiếu Lâm',
+          wudang: 'Võ Đang',
+          emei: 'Nga Mi',
+          gaibang: 'Cái Bang',
+          tangmen: 'Đường Môn',
+          wudu: 'Ngũ Độc',
+          cuiyan: 'Thúy Yên',
+          kunlun: 'Côn Lôn'
+        };
+
+        return {
+          name,
+          lvl,
+          xp,
+          gold,
+          facName: facMap[fac] || fac,
+          stage,
+          kills
+        };
+      } catch (e) {
+        return null;
+      }
+    });
+    return stats;
+  } catch (e) {
+    return null;
+  }
+}
+
+// API Endpoint trả về thông tin trạng thái Bot & Nhân vật
+app.get('/api/status', async (req, res) => {
   const mem = process.memoryUsage();
   botStatus.memory = `${Math.round(mem.rss / 1024 / 1024)}MB`;
+  
+  if (pageInstance && !pageInstance.isClosed()) {
+    const liveAccountStats = await getGameAccountStats(pageInstance);
+    if (liveAccountStats) {
+      botStatus.account = liveAccountStats;
+    }
+  }
+
   res.json({
     service: 'VolamIdle 24/7 Runner & Remote Control',
     botStatus: botStatus,
@@ -72,7 +133,6 @@ app.post('/api/key', async (req, res) => {
   }
 });
 
-// API Tải lại game và re-inject localStorage
 app.post('/api/reload', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
@@ -80,7 +140,6 @@ app.post('/api/reload', async (req, res) => {
       await loadLocalStorage(pageInstance);
       await pageInstance.goto(GAME_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
       
-      // Inject lại localStorage trực tiếp
       if (fs.existsSync(STORAGE_PATH)) {
         const storageData = fs.readFileSync(STORAGE_PATH, 'utf8');
         const storage = JSON.parse(storageData);
@@ -108,7 +167,7 @@ app.get('/', (req, res) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>VolamIdle 24/7 Remote Control</title>
+      <title>VolamIdle 24/7 Control Board</title>
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; padding: 15px; }
@@ -127,32 +186,46 @@ app.get('/', (req, res) => {
         button.secondary { background: #475569; }
         button.secondary:hover { background: #334155; }
         .hint { color: #94a3b8; font-size: 0.85rem; margin-top: 8px; }
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 15px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 15px; }
         .stat-card { background: #1e293b; padding: 12px; border-radius: 8px; border: 1px solid #334155; font-size: 0.9rem; }
         .stat-title { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 4px; }
+        .stat-value { font-weight: bold; font-size: 1.1rem; color: #38bdf8; }
+        .stat-value.gold { color: #fbbf24; }
+        .stat-value.level { color: #a7f3d0; }
       </style>
     </head>
     <body>
       <div class="container">
         <header>
-          <h1>🎮 Võ Lâm Idle 24/7 Remote Control</h1>
+          <h1>🎮 Võ Lâm Idle 24/7 Control Board</h1>
           <span class="badge" id="botStatusBadge">Running</span>
         </header>
 
+        <!-- Bảng Thống Kê Nhân Vật Real-time -->
         <div class="stat-grid">
           <div class="stat-card">
-            <div class="stat-title">RAM Sử Dụng</div>
-            <div id="statMemory" style="font-weight: bold; font-size: 1.1rem; color: #a7f3d0;">-- MB</div>
+            <div class="stat-title">👤 Tên Nhân Vật</div>
+            <div class="stat-value" id="accName">--</div>
           </div>
           <div class="stat-card">
-            <div class="stat-title">Lần Kiểm Tra Cuối</div>
-            <div id="statLastCheck" style="font-size: 0.85rem; color: #cbd5e1;">--</div>
+            <div class="stat-title">⭐ Cấp Độ (Level)</div>
+            <div class="stat-value level" id="accLvl">--</div>
           </div>
           <div class="stat-card">
-            <div class="stat-title">Chế độ Tự Động Refresh</div>
-            <div style="display: flex; align-items: center; gap: 6px; margin-top: 2px;">
-              <input type="checkbox" id="autoRefresh" checked> <label for="autoRefresh" style="font-size: 0.85rem;">Mỗi 5 giây</label>
-            </div>
+            <div class="stat-title">🗺️ Bản Đồ (Ải)</div>
+            <div class="stat-value" id="accStage">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">💰 Ngân Lượng (Vàng)</div>
+            <div class="stat-value gold" id="accGold">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">⚔️ Quái Đã Hạ</div>
+            <div class="stat-value" id="accKills">--</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-title">💾 RAM Server</div>
+            <div class="stat-value" id="statMemory" style="color:#e2e8f0;">-- MB</div>
           </div>
         </div>
 
@@ -162,7 +235,7 @@ app.get('/', (req, res) => {
             <img id="gameScreen" src="/api/screenshot" alt="Game Screen Live">
           </div>
           <div class="controls">
-            <button onclick="refreshScreen()">🔄 Làm mới ảnh</button>
+            <button onclick="refreshScreen()">🔄 Làm mới ảnh & chỉ số</button>
             <button class="secondary" onclick="sendKey('Space')">⌨️ Phím Space</button>
             <button class="secondary" onclick="sendKey('Enter')">⌨️ Phím Enter</button>
             <button class="secondary" onclick="sendKey('Escape')">⌨️ Phím Esc</button>
@@ -183,8 +256,17 @@ app.get('/', (req, res) => {
           try {
             const res = await fetch('/api/status');
             const data = await res.json();
+            
             document.getElementById('statMemory').innerText = data.botStatus.memory || '40MB';
-            document.getElementById('statLastCheck').innerText = new Date(data.botStatus.lastCheck).toLocaleTimeString();
+
+            if (data.botStatus.account) {
+              const acc = data.botStatus.account;
+              document.getElementById('accName').innerText = acc.name + ' (' + acc.facName + ')';
+              document.getElementById('accLvl').innerText = 'Level ' + acc.lvl;
+              document.getElementById('accStage').innerText = 'Ải ' + acc.stage;
+              document.getElementById('accGold').innerText = acc.gold.toLocaleString() + ' Gold';
+              document.getElementById('accKills').innerText = acc.kills.toLocaleString() + ' Con';
+            }
           } catch(e){}
         }
 
@@ -225,9 +307,7 @@ app.get('/', (req, res) => {
         }
 
         setInterval(() => {
-          if (document.getElementById('autoRefresh').checked) {
-            refreshScreen();
-          }
+          refreshScreen();
         }, 5000);
 
         updateStatus();
@@ -335,10 +415,15 @@ async function startBot() {
         if (pageInstance && !pageInstance.isClosed()) {
           const title = await pageInstance.title();
           const mem = process.memoryUsage();
+          const accStats = await getGameAccountStats(pageInstance);
+          
           botStatus.lastCheck = new Date().toISOString();
           botStatus.status = 'Running';
           botStatus.memory = `${Math.round(mem.rss / 1024 / 1024)}MB`;
-          console.log(`[KEEP-ALIVE ${new Date().toLocaleTimeString()}] Page title: "${title}" | RAM: ${botStatus.memory} | Active.`);
+          if (accStats) botStatus.account = accStats;
+
+          const accInfoStr = accStats ? `| NV: ${accStats.name} (${accStats.facName}) | Lv: ${accStats.lvl} | Ải: ${accStats.stage} | Vàng: ${accStats.gold.toLocaleString()}` : '';
+          console.log(`[KEEP-ALIVE ${new Date().toLocaleTimeString()}] Page: "${title}" ${accInfoStr} | RAM: ${botStatus.memory}`);
         }
       } catch (err) {
         console.error('[KEEP-ALIVE ERROR]', err.message);
