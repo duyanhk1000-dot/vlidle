@@ -137,9 +137,20 @@ app.get('/api/screenshot', async (req, res) => {
       res.contentType('image/jpeg');
       return res.send(screenshot);
     }
-    res.status(503).send('Browser page not initialized yet.');
+    const statusText = botStatus.error ? `Lỗi: ${botStatus.error}` : `Trạng thái: ${botStatus.status}`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">
+      <rect width="640" height="360" fill="#0f172a"/>
+      <text x="320" y="150" font-family="sans-serif" font-size="20" fill="#38bdf8" text-anchor="middle" font-weight="bold">🎮 Võ Lâm Idle 24/7 Bot</text>
+      <text x="320" y="195" font-family="sans-serif" font-size="15" fill="#f8fafc" text-anchor="middle">⏳ Đang kết nối Trình duyệt Chrome...</text>
+      <text x="320" y="235" font-family="sans-serif" font-size="13" fill="#fbbf24" text-anchor="middle">${statusText}</text>
+    </svg>`;
+    res.contentType('image/svg+xml').send(svg);
   } catch (err) {
-    res.status(500).send('Error capturing screenshot: ' + err.message);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">
+      <rect width="640" height="360" fill="#0f172a"/>
+      <text x="320" y="180" font-family="sans-serif" font-size="14" fill="#ef4444" text-anchor="middle">❌ Lỗi: ${err.message}</text>
+    </svg>`;
+    res.contentType('image/svg+xml').send(svg);
   }
 });
 
@@ -337,6 +348,17 @@ app.get('/', (req, res) => {
             const data = await res.json();
             
             document.getElementById('statMemory').innerText = data.botStatus.memory || '40MB';
+            const badge = document.getElementById('botStatusBadge');
+            if (badge && data.botStatus.status) {
+              badge.innerText = data.botStatus.status;
+              if (data.botStatus.status === 'Running') {
+                badge.style.background = '#22c55e';
+              } else if (data.botStatus.status.includes('Error') || data.botStatus.status === 'Crashed') {
+                badge.style.background = '#ef4444';
+              } else {
+                badge.style.background = '#eab308';
+              }
+            }
 
             if (data.botStatus.account) {
               const acc = data.botStatus.account;
@@ -454,6 +476,7 @@ async function loadLocalStorage(page) {
 
 async function startBot() {
   try {
+    botStatus.status = 'Khởi động Chrome...';
     console.log('[BOT] Launching Puppeteer browser with Mobile Viewport...');
     
     const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
@@ -475,6 +498,7 @@ async function startBot() {
       ]
     });
 
+    botStatus.status = 'Mở trang Game...';
     pageInstance = await browserInstance.newPage();
 
     await pageInstance.setUserAgent(
@@ -492,6 +516,7 @@ async function startBot() {
       timeout: 60000
     });
 
+    botStatus.status = 'Nạp Storage & Đăng nhập...';
     if (fs.existsSync(STORAGE_PATH)) {
       const storageData = fs.readFileSync(STORAGE_PATH, 'utf8');
       const storage = JSON.parse(storageData);
