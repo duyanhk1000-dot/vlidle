@@ -171,7 +171,6 @@ app.post('/api/key', async (req, res) => {
   }
 });
 
-// API Kích hoạt tự động điền ID aaaaa / Pass 123123
 app.post('/api/autologin', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
@@ -498,7 +497,6 @@ async function startBot() {
       }
     }
 
-    // Tự động kiểm tra và nhập ID/Pass ngay khi vừa nạp xong trang
     setTimeout(() => {
       autoLoginIfNeeded(pageInstance);
     }, 2000);
@@ -510,7 +508,6 @@ async function startBot() {
     setInterval(async () => {
       try {
         if (pageInstance && !pageInstance.isClosed()) {
-          // Tự động kiểm tra xem bảng đăng nhập có xuất hiện không và bấm Đăng nhập
           await autoLoginIfNeeded(pageInstance);
 
           const title = await pageInstance.title();
@@ -530,7 +527,7 @@ async function startBot() {
         botStatus.status = 'Error';
         botStatus.error = err.message;
       }
-    }, 15 * 1000); // Kiểm tra định kỳ 15 giây/lần
+    }, 15 * 1000);
 
   } catch (error) {
     console.error('[BOT FATAL ERROR]', error.message);
@@ -539,11 +536,12 @@ async function startBot() {
   }
 }
 
-app.listen(PORT, () => {
-  console.log(`[SERVER] Express server running instantly on port ${PORT}`);
+// Bind Express server trên 0.0.0.0 để Fly.io Proxy kết nối thành công 100%
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[SERVER] Express server running instantly on 0.0.0.0:${PORT}`);
   setTimeout(() => {
     startBot();
-  }, 5000);
+  }, 3000);
 });
 
 process.on('SIGTERM', async () => {
