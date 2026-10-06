@@ -479,7 +479,10 @@ async function startBot() {
     botStatus.status = 'Khởi động Chrome...';
     console.log('[BOT] Launching Puppeteer browser with Mobile Viewport...');
     
-    const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
+    let execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || '/usr/bin/chromium';
+    if (!fs.existsSync(execPath)) {
+      execPath = null;
+    }
 
     browserInstance = await puppeteer.launch({
       headless: true,
