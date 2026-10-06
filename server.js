@@ -322,6 +322,10 @@ app.get('/', (req, res) => {
         const gameImg = document.getElementById('gameScreen');
         let refreshTimer = null;
 
+        gameImg.onerror = function() {
+          setTimeout(refreshScreen, 1500);
+        };
+
         function refreshScreen() {
           gameImg.src = '/api/screenshot?t=' + Date.now();
           updateStatus();
