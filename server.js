@@ -479,25 +479,22 @@ async function startBot() {
     botStatus.status = 'Khởi động Chrome...';
     console.log('[BOT] Launching Puppeteer browser with Mobile Viewport...');
     
-    let execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || '/usr/bin/chromium';
-    if (!fs.existsSync(execPath)) {
+    let execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
+    if (execPath && !fs.existsSync(execPath)) {
       execPath = null;
     }
 
     browserInstance = await puppeteer.launch({
-      headless: true,
-      executablePath: execPath,
+      headless: 'shell',
+      executablePath: execPath || undefined,
       protocolTimeout: 120000,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--no-zygote',
         '--no-first-run',
-        '--disable-extensions',
-        '--disable-component-update',
-        '--disable-background-networking'
+        '--disable-extensions'
       ]
     });
 
