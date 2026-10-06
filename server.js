@@ -459,23 +459,19 @@ async function startBot() {
     const execPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.PUPPETEER_EXEC_PATH || null;
 
     browserInstance = await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       executablePath: execPath,
-      pipe: true,
       protocolTimeout: 120000,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--single-process',
         '--no-zygote',
         '--no-first-run',
         '--disable-extensions',
         '--disable-component-update',
-        '--disable-background-networking',
-        '--disable-features=IsolateOrigins,site-per-process',
-        '--disable-site-isolation-trials'
+        '--disable-background-networking'
       ]
     });
 
