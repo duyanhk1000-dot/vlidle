@@ -500,6 +500,8 @@ async function startBot() {
 
     botStatus.status = 'Mở trang Game...';
     pageInstance = await browserInstance.newPage();
+    pageInstance.setDefaultTimeout(90000);
+    pageInstance.setDefaultNavigationTimeout(90000);
 
     await pageInstance.setUserAgent(
       'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36'
@@ -511,10 +513,18 @@ async function startBot() {
     await loadLocalStorage(pageInstance);
 
     console.log(`[BOT] Navigating to game: ${GAME_URL}`);
-    await pageInstance.goto(GAME_URL, {
-      waitUntil: 'domcontentloaded',
-      timeout: 60000
-    });
+    try {
+      await pageInstance.goto(GAME_URL, {
+        waitUntil: 'domcontentloaded',
+        timeout: 90000
+      });
+    } catch (navErr) {
+      console.warn('[BOT NAV WARNING]', navErr.message, '- Retrying goto...');
+      await pageInstance.goto(GAME_URL, {
+        waitUntil: 'domcontentloaded',
+        timeout: 90000
+      });
+    }
 
     botStatus.status = 'Nạp Storage & Đăng nhập...';
     if (fs.existsSync(STORAGE_PATH)) {
