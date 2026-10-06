@@ -457,6 +457,7 @@ async function startBot() {
     browserInstance = await puppeteer.launch({
       headless: 'new',
       executablePath: execPath,
+      protocolTimeout: 90000,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -464,6 +465,8 @@ async function startBot() {
         '--disable-gpu',
         '--no-first-run',
         '--disable-extensions',
+        '--disable-accelerated-2d-canvas',
+        '--no-zygote',
         '--js-flags=--max-old-space-size=256'
       ]
     });
