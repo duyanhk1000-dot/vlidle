@@ -25,17 +25,47 @@ let botStatus = {
   error: null
 };
 
-// Hàm tự động xử lý 3 bước: Điền ID/Pass (Bước 1), Bấm Vào Game (Bước 2), Bấm Nhận Thưởng (Bước 3)
+// Hàm tự động xử lý đăng nhập, chọn nhân vật Slot 1, đóng bảng tạo NV và nhận thưởng
 async function autoLoginIfNeeded(page) {
   try {
     if (!page || page.isClosed()) return;
 
     await page.evaluate(() => {
       try {
-        // --- BƯỚC 1: ĐIỀN TÀI KHOẢN & MẬT KHẨU (Nếu xuất hiện bảng Đăng Nhập) ---
-        const modal = document.querySelector('#mBody') || document.querySelector('#modal');
-        if (modal) {
-          const inputs = Array.from(modal.querySelectorAll('input'));
+        const modal = document.querySelector('#modal');
+        const modalText = modal && !modal.classList.contains('hidden') ? (modal.innerText || '') : '';
+        const csel = document.querySelector('#csel');
+
+        // 1. TỰ ĐỘNG ĐÓNG NẾU LỠ MỞ BẢNG "TẠO NHÂN VẬT"
+        if (modalText.includes('Tạo nhân vật') || modalText.includes('Chọn tên, giới tính')) {
+          const closeBtn = document.querySelector('#mClose, .mx, button.close');
+          if (closeBtn) {
+            closeBtn.click();
+          } else if (typeof closeModal === 'function') {
+            closeModal(true);
+          }
+        }
+
+        // 2. TỰ ĐỘNG ĐĂNG NHẬP (Nếu xuất hiện bảng Đăng Nhập NetGate hoặc form ID/Pass)
+        const uInput = document.querySelector('#ngU');
+        const pInput = document.querySelector('#ngP');
+        const loginBtn = document.querySelector('#ngIn');
+
+        if (uInput && pInput && loginBtn && modalText.includes('Đăng nhập')) {
+          if (uInput.value !== 'aaaaa') {
+            uInput.value = 'aaaaa';
+            uInput.dispatchEvent(new Event('input', { bubbles: true }));
+            uInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          if (pInput.value !== '123123') {
+            pInput.value = '123123';
+            pInput.dispatchEvent(new Event('input', { bubbles: true }));
+            pInput.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          loginBtn.click();
+        } else {
+          // Fallback nếu modal đăng nhập thông thường
+          const inputs = modal ? Array.from(modal.querySelectorAll('input')) : [];
           if (inputs.length >= 2) {
             let userField = inputs.find(i => i.type === 'text' || (i.placeholder && (i.placeholder.toLowerCase().includes('tên') || i.placeholder.toLowerCase().includes('chữ')))) || inputs[0];
             let passField = inputs.find(i => i.type === 'password' || (i.placeholder && (i.placeholder.toLowerCase().includes('ký tự') || i.placeholder.toLowerCase().includes('mật khẩu')))) || inputs[1];
@@ -46,55 +76,71 @@ async function autoLoginIfNeeded(page) {
                 userField.dispatchEvent(new Event('input', { bubbles: true }));
                 userField.dispatchEvent(new Event('change', { bubbles: true }));
               }
-
               if (passField.value !== '123123') {
                 passField.value = '123123';
                 passField.dispatchEvent(new Event('input', { bubbles: true }));
                 passField.dispatchEvent(new Event('change', { bubbles: true }));
               }
-
               const buttons = Array.from(modal.querySelectorAll('button'));
-              const loginBtn = buttons.find(b => (b.innerText || b.textContent || '').trim().includes('Đăng nhập'));
-              if (loginBtn) {
-                loginBtn.click();
-              }
+              const btn = buttons.find(b => (b.innerText || b.textContent || '').trim().includes('Đăng nhập'));
+              if (btn) btn.click();
             }
           }
         }
 
-        // --- BƯỚC 2: BẤM "VÀO GAME" (Nếu xuất hiện màn hình Chọn Nhân Vật) ---
-        const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
-        const enterGameBtn = allButtons.find(b => {
-          const text = (b.innerText || b.textContent || '').trim();
-          return text === 'Vào Game' || text.includes('Vào Game');
-        });
+        // 3. TỰ ĐỘNG CHỌN SLOT 1 VÀ BẤM "VÀO GAME" (Nếu ở màn hình Chọn Nhân Vật #csel)
+        if (csel) {
+          // Chọn Slot 1 (data-i="0")
+          const slot0 = document.querySelector('#csel .cs-slot[data-i="0"]');
+          if (slot0 && !slot0.classList.contains('on')) {
+            slot0.click();
+          }
 
-        if (enterGameBtn && enterGameBtn.offsetWidth > 0 && enterGameBtn.offsetHeight > 0) {
-          enterGameBtn.click();
+          // Bấm nút "Vào Game" (#csGo)
+          const csGoBtn = document.querySelector('#csGo') || Array.from(document.querySelectorAll('#csel button, .go')).find(b => (b.innerText || '').trim().includes('Vào Game'));
+          if (csGoBtn && csGoBtn.offsetWidth > 0 && csGoBtn.offsetHeight > 0) {
+            csGoBtn.click();
+          }
+        } else {
+          // Fallback tìm nút "Vào Game" ngoài màn hình
+          const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
+          const enterGameBtn = allButtons.find(b => {
+            const text = (b.innerText || b.textContent || '').trim();
+            return text === 'Vào Game' || text.includes('Vào Game');
+          });
+          if (enterGameBtn && enterGameBtn.offsetWidth > 0 && enterGameBtn.offsetHeight > 0) {
+            enterGameBtn.click();
+          }
         }
 
-        // --- BƯỚC 3: TỰ ĐỘNG BẤM "NHẬN" PHẦN THƯỞNG VẮNG MẶT / POPUP ---
-        const claimBtn = allButtons.find(b => {
-          const text = (b.innerText || b.textContent || '').trim();
-          return text === 'Nhận' || text === 'Nhận thưởng' || text === 'Xác nhận';
-        });
-
-        if (claimBtn && claimBtn.offsetWidth > 0 && claimBtn.offsetHeight > 0) {
-          claimBtn.click();
+        // 4. TỰ ĐỘNG BẤM "NHẬN" / "XÁC NHẬN" PHẦN THƯỞNG VẮNG MẶT HOẶC POPUP
+        if (modalText.includes('Chào mừng trở lại') || modalText.includes('Vắng mặt') || modalText.includes('Phần thưởng') || modalText.includes('Thông báo') || modalText.includes('Sự kiện')) {
+          const claimBtn = Array.from(document.querySelectorAll('#modal button, .btnrow button, .btn')).find(b => {
+            const text = (b.innerText || b.textContent || '').trim();
+            return text === 'Nhận' || text === 'Nhận thưởng' || text === 'Xác nhận' || text === 'Đóng';
+          });
+          if (claimBtn && claimBtn.offsetWidth > 0 && claimBtn.offsetHeight > 0) {
+            claimBtn.click();
+          }
         }
-      } catch(e) {}
+      } catch (e) {}
     });
 
-    // Thử lại các bước sau 1.5 giây để chuỗi hành động đăng nhập -> chọn NV -> nhận thưởng diễn ra liên tục
+    // Thử lại sau 1.2 giây cho chuỗi hành động diễn ra mượt mà
     setTimeout(async () => {
       try {
         if (!page || page.isClosed()) return;
         await page.evaluate(() => {
-          const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
-          const enterGameBtn = allButtons.find(b => (b.innerText || b.textContent || '').trim().includes('Vào Game'));
-          if (enterGameBtn && enterGameBtn.offsetWidth > 0 && enterGameBtn.offsetHeight > 0) {
-            enterGameBtn.click();
+          // Chọn slot 0 & vào game nếu vẫn ở #csel
+          const csel = document.querySelector('#csel');
+          if (csel) {
+            const slot0 = document.querySelector('#csel .cs-slot[data-i="0"]');
+            if (slot0 && !slot0.classList.contains('on')) slot0.click();
+            const csGoBtn = document.querySelector('#csGo');
+            if (csGoBtn) csGoBtn.click();
           }
+
+          const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
           const claimBtn = allButtons.find(b => {
             const text = (b.innerText || b.textContent || '').trim();
             return text === 'Nhận' || text === 'Nhận thưởng' || text === 'Xác nhận';
@@ -103,33 +149,20 @@ async function autoLoginIfNeeded(page) {
             claimBtn.click();
           }
         });
-      } catch(e) {}
-    }, 1500);
+      } catch (e) {}
+    }, 1200);
 
   } catch (err) {
     console.error('[AUTO-LOGIN ERROR]', err.message);
   }
 }
 
-// Hàm trích xuất chỉ số nhân vật từ localStorage
+// Hàm trích xuất chỉ số nhân vật từ window.S hoặc localStorage
 async function getGameAccountStats(page) {
   try {
     if (!page || page.isClosed()) return null;
     const stats = await page.evaluate(() => {
       try {
-        const rawData = localStorage.getItem('jxidle_2') || localStorage.getItem('jxidle');
-        if (!rawData) return null;
-        const parsed = JSON.parse(rawData);
-        const data = parsed.d ? JSON.parse(parsed.d) : parsed;
-        
-        const name = data.name || 'N/A';
-        const lvl = data.lvl || 0;
-        const xp = Math.round(data.xp || 0);
-        const gold = Math.round(data.gold || 0);
-        const fac = data.fac || 'N/A';
-        const stage = data.stage || 0;
-        const kills = data.totalKills || (data.stat ? data.stat.kills : 0);
-
         const facMap = {
           tianren: 'Thiên Nhẫn',
           tianwang: 'Thiên Vương',
@@ -142,6 +175,34 @@ async function getGameAccountStats(page) {
           cuiyan: 'Thúy Yên',
           kunlun: 'Côn Lôn'
         };
+
+        // Ưu tiên đọc trực tiếp từ window.S nếu game đang chạy
+        if (window.S && window.S.fac) {
+          const s = window.S;
+          return {
+            name: s.name || 'N/A',
+            lvl: s.lvl || 0,
+            xp: Math.round(s.xp || 0),
+            gold: Math.round(s.gold || 0),
+            facName: facMap[s.fac] || s.fac,
+            stage: s.stage || 0,
+            kills: s.totalKills || 0
+          };
+        }
+
+        // Fallback đọc từ localStorage: ưu tiên Slot 1 (jxidle) rồi tới Slot 2 (jxidle_2)
+        const rawData = localStorage.getItem('jxidle') || localStorage.getItem('jxidle_2');
+        if (!rawData) return null;
+        const parsed = JSON.parse(rawData);
+        const data = parsed.d ? JSON.parse(parsed.d) : parsed;
+        
+        const name = data.name || 'N/A';
+        const lvl = data.lvl || 0;
+        const xp = Math.round(data.xp || 0);
+        const gold = Math.round(data.gold || 0);
+        const fac = data.fac || 'N/A';
+        const stage = data.stage || 0;
+        const kills = data.totalKills || (data.stat ? data.stat.kills : 0);
 
         return {
           name,
@@ -570,6 +631,7 @@ async function loadLocalStorage(page) {
           for (const [key, value] of Object.entries(data)) {
             localStorage.setItem(key, value);
           }
+          sessionStorage.setItem('jxidle_in', data.jxidle_slot || '0');
         }, storage);
         console.log(`[LOCALSTORAGE] Configured ${Object.keys(storage).length} keys for auto-injection.`);
       }
@@ -640,6 +702,7 @@ async function startBot() {
           for (const [key, value] of Object.entries(data)) {
             localStorage.setItem(key, value);
           }
+          sessionStorage.setItem('jxidle_in', data.jxidle_slot || '0');
         }, storage);
       }
     }
