@@ -25,40 +25,73 @@ let botStatus = {
   error: null
 };
 
-// Hàm tự động điền ID/Pass và bấm Đăng Nhập nếu xuất hiện bảng đăng nhập
+// Hàm tự động xử lý đăng nhập 2 bước: Điền ID/Pass (Bước 1) và bấm Vào Game (Bước 2)
 async function autoLoginIfNeeded(page) {
   try {
     if (!page || page.isClosed()) return;
 
     await page.evaluate(() => {
       try {
+        // --- BƯỚC 1: ĐIỀN TÀI KHOẢN & MẬT KHẨU (Nếu xuất hiện bảng Đăng Nhập) ---
         const modal = document.querySelector('#mBody') || document.querySelector('#modal');
-        if (!modal) return;
+        if (modal) {
+          const inputs = Array.from(modal.querySelectorAll('input'));
+          if (inputs.length >= 2) {
+            let userField = inputs.find(i => i.type === 'text' || (i.placeholder && (i.placeholder.toLowerCase().includes('tên') || i.placeholder.toLowerCase().includes('chữ')))) || inputs[0];
+            let passField = inputs.find(i => i.type === 'password' || (i.placeholder && (i.placeholder.toLowerCase().includes('ký tự') || i.placeholder.toLowerCase().includes('mật khẩu')))) || inputs[1];
 
-        const inputs = Array.from(modal.querySelectorAll('input'));
-        if (inputs.length >= 2) {
-          // Tìm chính xác ô Tên đăng nhập và ô Mật khẩu dựa vào type hoặc placeholder
-          let userField = inputs.find(i => i.type === 'text' || (i.placeholder && i.placeholder.toLowerCase().includes('tên'))) || inputs[0];
-          let passField = inputs.find(i => i.type === 'password' || (i.placeholder && (i.placeholder.toLowerCase().includes('ký tự') || i.placeholder.toLowerCase().includes('mật khẩu')))) || inputs[1];
+            if (userField && passField && userField !== passField) {
+              if (userField.value !== 'aaaaa') {
+                userField.value = 'aaaaa';
+                userField.dispatchEvent(new Event('input', { bubbles: true }));
+                userField.dispatchEvent(new Event('change', { bubbles: true }));
+              }
 
-          if (userField && passField && userField !== passField) {
-            userField.value = 'aaaaa';
-            userField.dispatchEvent(new Event('input', { bubbles: true }));
-            userField.dispatchEvent(new Event('change', { bubbles: true }));
+              if (passField.value !== '123123') {
+                passField.value = '123123';
+                passField.dispatchEvent(new Event('input', { bubbles: true }));
+                passField.dispatchEvent(new Event('change', { bubbles: true }));
+              }
 
-            passField.value = '123123';
-            passField.dispatchEvent(new Event('input', { bubbles: true }));
-            passField.dispatchEvent(new Event('change', { bubbles: true }));
-
-            const buttons = Array.from(modal.querySelectorAll('button'));
-            const loginBtn = buttons.find(b => (b.innerText || b.textContent || '').trim().includes('Đăng nhập'));
-            if (loginBtn) {
-              loginBtn.click();
+              const buttons = Array.from(modal.querySelectorAll('button'));
+              const loginBtn = buttons.find(b => (b.innerText || b.textContent || '').trim().includes('Đăng nhập'));
+              if (loginBtn) {
+                loginBtn.click();
+              }
             }
           }
         }
+
+        // --- BƯỚC 2: BẤM "VÀO GAME" (Nếu xuất hiện màn hình Chọn Nhân Vật) ---
+        const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
+        const enterGameBtn = allButtons.find(b => {
+          const text = (b.innerText || b.textContent || '').trim();
+          return text === 'Vào Game' || text.includes('Vào Game');
+        });
+
+        if (enterGameBtn && enterGameBtn.offsetWidth > 0 && enterGameBtn.offsetHeight > 0) {
+          enterGameBtn.click();
+        }
       } catch(e) {}
     });
+
+    // Thử bấm "Vào Game" lần 2 sau 1.5 giây để chuyển giao mượt mà từ Bước 1 sang Bước 2
+    setTimeout(async () => {
+      try {
+        if (!page || page.isClosed()) return;
+        await page.evaluate(() => {
+          const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
+          const enterGameBtn = allButtons.find(b => {
+            const text = (b.innerText || b.textContent || '').trim();
+            return text === 'Vào Game' || text.includes('Vào Game');
+          });
+          if (enterGameBtn && enterGameBtn.offsetWidth > 0 && enterGameBtn.offsetHeight > 0) {
+            enterGameBtn.click();
+          }
+        });
+      } catch(e) {}
+    }, 1500);
+
   } catch (err) {
     console.error('[AUTO-LOGIN ERROR]', err.message);
   }
