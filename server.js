@@ -25,7 +25,7 @@ let botStatus = {
   error: null
 };
 
-// Hàm tự động xử lý đăng nhập 2 bước: Điền ID/Pass (Bước 1) và bấm Vào Game (Bước 2)
+// Hàm tự động xử lý 3 bước: Điền ID/Pass (Bước 1), Bấm Vào Game (Bước 2), Bấm Nhận Thưởng (Bước 3)
 async function autoLoginIfNeeded(page) {
   try {
     if (!page || page.isClosed()) return;
@@ -72,21 +72,35 @@ async function autoLoginIfNeeded(page) {
         if (enterGameBtn && enterGameBtn.offsetWidth > 0 && enterGameBtn.offsetHeight > 0) {
           enterGameBtn.click();
         }
+
+        // --- BƯỚC 3: TỰ ĐỘNG BẤM "NHẬN" PHẦN THƯỞNG VẮNG MẶT / POPUP ---
+        const claimBtn = allButtons.find(b => {
+          const text = (b.innerText || b.textContent || '').trim();
+          return text === 'Nhận' || text === 'Nhận thưởng' || text === 'Xác nhận';
+        });
+
+        if (claimBtn && claimBtn.offsetWidth > 0 && claimBtn.offsetHeight > 0) {
+          claimBtn.click();
+        }
       } catch(e) {}
     });
 
-    // Thử bấm "Vào Game" lần 2 sau 1.5 giây để chuyển giao mượt mà từ Bước 1 sang Bước 2
+    // Thử lại các bước sau 1.5 giây để chuỗi hành động đăng nhập -> chọn NV -> nhận thưởng diễn ra liên tục
     setTimeout(async () => {
       try {
         if (!page || page.isClosed()) return;
         await page.evaluate(() => {
           const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
-          const enterGameBtn = allButtons.find(b => {
-            const text = (b.innerText || b.textContent || '').trim();
-            return text === 'Vào Game' || text.includes('Vào Game');
-          });
+          const enterGameBtn = allButtons.find(b => (b.innerText || b.textContent || '').trim().includes('Vào Game'));
           if (enterGameBtn && enterGameBtn.offsetWidth > 0 && enterGameBtn.offsetHeight > 0) {
             enterGameBtn.click();
+          }
+          const claimBtn = allButtons.find(b => {
+            const text = (b.innerText || b.textContent || '').trim();
+            return text === 'Nhận' || text === 'Nhận thưởng' || text === 'Xác nhận';
+          });
+          if (claimBtn && claimBtn.offsetWidth > 0 && claimBtn.offsetHeight > 0) {
+            claimBtn.click();
           }
         });
       } catch(e) {}
@@ -166,16 +180,38 @@ app.get('/api/status', async (req, res) => {
   });
 });
 
+let isTakingScreenshot = false;
+let cachedScreenshot = null;
+let lastScreenshotTime = 0;
+
 app.get('/api/screenshot', async (req, res) => {
   try {
-    if (pageInstance && !pageInstance.isClosed()) {
-      const screenshot = await pageInstance.screenshot({
-        type: 'jpeg',
-        quality: 45
-      });
+    const now = Date.now();
+    // Trả về cache nếu vừa chụp trong vòng 300ms để tránh quá tải CPU Puppeteer
+    if (cachedScreenshot && (now - lastScreenshotTime < 300)) {
       res.contentType('image/jpeg');
-      return res.send(screenshot);
+      return res.send(cachedScreenshot);
     }
+
+    if (pageInstance && !pageInstance.isClosed() && !isTakingScreenshot) {
+      isTakingScreenshot = true;
+      try {
+        cachedScreenshot = await pageInstance.screenshot({
+          type: 'jpeg',
+          quality: 35,
+          optimizeForSpeed: true
+        });
+        lastScreenshotTime = Date.now();
+        res.contentType('image/jpeg');
+        return res.send(cachedScreenshot);
+      } finally {
+        isTakingScreenshot = false;
+      }
+    } else if (cachedScreenshot) {
+      res.contentType('image/jpeg');
+      return res.send(cachedScreenshot);
+    }
+
     const statusText = botStatus.error ? `Lỗi: ${botStatus.error}` : `Trạng thái: ${botStatus.status}`;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
       <rect width="360" height="640" fill="#0f172a"/>
@@ -199,6 +235,7 @@ app.post('/api/click', async (req, res) => {
     if (pageInstance && !pageInstance.isClosed()) {
       await pageInstance.mouse.click(Number(x), Number(y));
       console.log(`[REMOTE CONTROL] Clicked at (${x}, ${y})`);
+      lastScreenshotTime = 0; // Xóa cache ảnh để client nạp ảnh mới ngay lập tức
       return res.json({ success: true, x, y });
     }
     res.status(503).json({ error: 'Page not ready' });
@@ -213,7 +250,29 @@ app.post('/api/key', async (req, res) => {
     if (pageInstance && !pageInstance.isClosed()) {
       await pageInstance.keyboard.press(key);
       console.log(`[REMOTE CONTROL] Pressed key: ${key}`);
+      lastScreenshotTime = 0;
       return res.json({ success: true, key });
+    }
+    res.status(503).json({ error: 'Page not ready' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/claim', async (req, res) => {
+  try {
+    if (pageInstance && !pageInstance.isClosed()) {
+      console.log('[REMOTE CONTROL] Triggering Auto-Claim Rewards / Dismiss Popup...');
+      await pageInstance.evaluate(() => {
+        const allButtons = Array.from(document.querySelectorAll('button, .btn, div[role="button"]'));
+        const claimBtn = allButtons.find(b => {
+          const text = (b.innerText || b.textContent || '').trim();
+          return text === 'Nhận' || text === 'Nhận thưởng' || text === 'Xác nhận' || text.includes('Vào Game');
+        });
+        if (claimBtn) claimBtn.click();
+      });
+      lastScreenshotTime = 0;
+      return res.json({ success: true });
     }
     res.status(503).json({ error: 'Page not ready' });
   } catch (err) {
@@ -224,8 +283,9 @@ app.post('/api/key', async (req, res) => {
 app.post('/api/autologin', async (req, res) => {
   try {
     if (pageInstance && !pageInstance.isClosed()) {
-      console.log('[REMOTE CONTROL] Triggering Auto-Login for aaaaa / 123123...');
+      console.log('[REMOTE CONTROL] Triggering Auto-Login Workflow...');
       await autoLoginIfNeeded(pageInstance);
+      lastScreenshotTime = 0;
       return res.json({ success: true });
     }
     res.status(503).json({ error: 'Page not ready' });
@@ -359,6 +419,7 @@ app.get('/', (req, res) => {
 
           <div class="controls">
             <button class="success" onclick="triggerAutoLogin()">🔑 Tự Đăng Nhập (aaaaa / 123123)</button>
+            <button class="success" style="background:#059669;" onclick="claimReward()">🎁 Nhận Thưởng / Đóng Popup</button>
             <button onclick="refreshScreen()">🔄 Làm mới ảnh & chỉ số</button>
             <button class="secondary" onclick="sendKey('Space')">⌨️ Phím Space</button>
             <button class="secondary" onclick="sendKey('Enter')">⌨️ Phím Enter</button>
@@ -379,6 +440,11 @@ app.get('/', (req, res) => {
         function refreshScreen() {
           gameImg.src = '/api/screenshot?t=' + Date.now();
           updateStatus();
+        }
+
+        async function claimReward() {
+          await fetch('/api/claim', { method: 'POST' });
+          setTimeout(refreshScreen, 300);
         }
 
         async function updateStatus() {
