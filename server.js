@@ -386,6 +386,30 @@ app.post('/api/reload', async (req, res) => {
   }
 });
 
+app.post('/api/switch-slot', async (req, res) => {
+  try {
+    const slotIdx = req.body && req.body.slot !== undefined ? String(req.body.slot) : '0';
+    if (pageInstance && !pageInstance.isClosed()) {
+      console.log(`[REMOTE CONTROL] Switching to slot ${slotIdx}...`);
+      await pageInstance.evaluate((slot) => {
+        try {
+          localStorage.setItem('jxidle_slot', slot);
+          sessionStorage.setItem('jxidle_in', slot);
+          location.reload();
+        } catch(e) {}
+      }, slotIdx);
+      lastScreenshotTime = 0;
+      setTimeout(() => {
+        autoLoginIfNeeded(pageInstance);
+      }, 2500);
+      return res.json({ success: true, slot: slotIdx });
+    }
+    res.status(503).json({ error: 'Page not ready' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/', (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -479,6 +503,8 @@ app.get('/', (req, res) => {
           </div>
 
           <div class="controls">
+            <button class="secondary" style="background:#2563eb; color:#fff; font-weight: bold;" onclick="switchSlot(0)">👤 Chuyển sang Slot 1 (CS 1 Lv 62)</button>
+            <button class="secondary" style="background:#475569; color:#fff;" onclick="switchSlot(1)">👤 Chuyển sang Slot 2 (Lv 200)</button>
             <button class="success" onclick="triggerAutoLogin()">🔑 Tự Đăng Nhập (aaaaa / 123123)</button>
             <button class="success" style="background:#059669;" onclick="claimReward()">🎁 Nhận Thưởng / Đóng Popup</button>
             <button onclick="refreshScreen()">🔄 Làm mới ảnh & chỉ số</button>
@@ -575,6 +601,18 @@ app.get('/', (req, res) => {
           if (confirm('Bạn có chắc chắn muốn nạp lại tài khoản và kết nối lại game?')) {
             await fetch('/api/reload', { method: 'POST' });
             setTimeout(refreshScreen, 2000);
+          }
+        }
+
+        async function switchSlot(slot) {
+          const name = slot === 0 ? 'Slot 1 (Chuyển sinh 1 - Lv 62)' : 'Slot 2 (Lv 200)';
+          if (confirm(`Bạn có chắc muốn chuyển sang ${name}?`)) {
+            await fetch('/api/switch-slot', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ slot })
+            });
+            setTimeout(refreshScreen, 2500);
           }
         }
 
