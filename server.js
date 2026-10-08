@@ -503,8 +503,7 @@ app.get('/', (req, res) => {
           </div>
 
           <div class="controls">
-            <button class="secondary" style="background:#2563eb; color:#fff; font-weight: bold;" onclick="switchSlot(0)">👤 Chuyển sang Slot 1 (CS 1 Lv 62)</button>
-            <button class="secondary" style="background:#475569; color:#fff;" onclick="switchSlot(1)">👤 Chuyển sang Slot 2 (Lv 200)</button>
+            <button class="secondary" style="background:#2563eb; color:#fff; font-weight: bold;" onclick="switchSlot(0)">👤 Vào Slot 1 (CS 1 - TT)</button>
             <button class="success" onclick="triggerAutoLogin()">🔑 Tự Đăng Nhập (aaaaa / 123123)</button>
             <button class="success" style="background:#059669;" onclick="claimReward()">🎁 Nhận Thưởng / Đóng Popup</button>
             <button onclick="refreshScreen()">🔄 Làm mới ảnh & chỉ số</button>
