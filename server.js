@@ -32,23 +32,29 @@ async function autoLoginIfNeeded(page) {
 
     await page.evaluate(() => {
       try {
-        const inputs = Array.from(document.querySelectorAll('input'));
+        const modal = document.querySelector('#mBody') || document.querySelector('#modal');
+        if (!modal) return;
+
+        const inputs = Array.from(modal.querySelectorAll('input'));
         if (inputs.length >= 2) {
-          const userField = inputs[0];
-          const passField = inputs[1];
+          // Tìm chính xác ô Tên đăng nhập và ô Mật khẩu dựa vào type hoặc placeholder
+          let userField = inputs.find(i => i.type === 'text' || (i.placeholder && i.placeholder.toLowerCase().includes('tên'))) || inputs[0];
+          let passField = inputs.find(i => i.type === 'password' || (i.placeholder && (i.placeholder.toLowerCase().includes('ký tự') || i.placeholder.toLowerCase().includes('mật khẩu')))) || inputs[1];
 
-          userField.value = 'aaaaa';
-          userField.dispatchEvent(new Event('input', { bubbles: true }));
-          userField.dispatchEvent(new Event('change', { bubbles: true }));
+          if (userField && passField && userField !== passField) {
+            userField.value = 'aaaaa';
+            userField.dispatchEvent(new Event('input', { bubbles: true }));
+            userField.dispatchEvent(new Event('change', { bubbles: true }));
 
-          passField.value = '123123';
-          passField.dispatchEvent(new Event('input', { bubbles: true }));
-          passField.dispatchEvent(new Event('change', { bubbles: true }));
+            passField.value = '123123';
+            passField.dispatchEvent(new Event('input', { bubbles: true }));
+            passField.dispatchEvent(new Event('change', { bubbles: true }));
 
-          const buttons = Array.from(document.querySelectorAll('button'));
-          const loginBtn = buttons.find(b => (b.innerText || b.textContent || '').includes('Đăng nhập'));
-          if (loginBtn) {
-            loginBtn.click();
+            const buttons = Array.from(modal.querySelectorAll('button'));
+            const loginBtn = buttons.find(b => (b.innerText || b.textContent || '').trim().includes('Đăng nhập'));
+            if (loginBtn) {
+              loginBtn.click();
+            }
           }
         }
       } catch(e) {}
