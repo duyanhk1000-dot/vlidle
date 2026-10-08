@@ -16,6 +16,7 @@ app.use(express.json());
 
 let browserInstance = null;
 let pageInstance = null;
+let keepAliveTimer = null;
 let botStatus = {
   status: 'Initializing',
   lastCheck: null,
@@ -268,16 +269,20 @@ app.get('/api/screenshot', async (req, res) => {
       } finally {
         isTakingScreenshot = false;
       }
-    } else if (cachedScreenshot) {
+    } else if (cachedScreenshot && pageInstance && !pageInstance.isClosed()) {
       res.contentType('image/jpeg');
       return res.send(cachedScreenshot);
     }
 
+    const isStopped = botStatus.status === 'Đã tắt game' || !pageInstance || pageInstance.isClosed();
+    const titleText = isStopped ? '⏹️ Game Hiện Đang Tắt' : '🎮 Võ Lâm Idle 24/7 Bot';
+    const subText = isStopped ? 'Bấm nút "▶️ Mở Game" bên dưới để khởi động lại' : '⏳ Đang kết nối Trình duyệt Chrome...';
     const statusText = botStatus.error ? `Lỗi: ${botStatus.error}` : `Trạng thái: ${botStatus.status}`;
+
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
       <rect width="360" height="640" fill="#0f172a"/>
-      <text x="180" y="280" font-family="sans-serif" font-size="20" fill="#38bdf8" text-anchor="middle" font-weight="bold">🎮 Võ Lâm Idle 24/7 Bot</text>
-      <text x="180" y="325" font-family="sans-serif" font-size="15" fill="#f8fafc" text-anchor="middle">⏳ Đang kết nối Trình duyệt Chrome...</text>
+      <text x="180" y="280" font-family="sans-serif" font-size="20" fill="${isStopped ? '#ef4444' : '#38bdf8'}" text-anchor="middle" font-weight="bold">${titleText}</text>
+      <text x="180" y="325" font-family="sans-serif" font-size="14" fill="#f8fafc" text-anchor="middle">${subText}</text>
       <text x="180" y="365" font-family="sans-serif" font-size="13" fill="#fbbf24" text-anchor="middle">${statusText}</text>
     </svg>`;
     res.contentType('image/svg+xml').send(svg);
@@ -287,6 +292,47 @@ app.get('/api/screenshot', async (req, res) => {
       <text x="180" y="320" font-family="sans-serif" font-size="14" fill="#ef4444" text-anchor="middle">❌ Lỗi: ${err.message}</text>
     </svg>`;
     res.contentType('image/svg+xml').send(svg);
+  }
+});
+
+app.post('/api/start', async (req, res) => {
+  try {
+    if (pageInstance && !pageInstance.isClosed()) {
+      return res.json({ success: true, message: 'Game đã đang chạy!' });
+    }
+    console.log('[REMOTE CONTROL] Starting game bot...');
+    botStatus.status = 'Khởi động...';
+    botStatus.error = null;
+    startBot().catch(err => {
+      console.error('[START BOT ERROR]', err);
+    });
+    return res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/stop', async (req, res) => {
+  try {
+    console.log('[REMOTE CONTROL] Stopping game bot...');
+    if (keepAliveTimer) {
+      clearInterval(keepAliveTimer);
+      keepAliveTimer = null;
+    }
+    if (browserInstance) {
+      try {
+        await browserInstance.close();
+      } catch (e) {}
+    }
+    browserInstance = null;
+    pageInstance = null;
+    cachedScreenshot = null;
+    botStatus.status = 'Đã tắt game';
+    botStatus.account = null;
+    console.log('[BOT] Game bot stopped successfully.');
+    return res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -503,6 +549,8 @@ app.get('/', (req, res) => {
           </div>
 
           <div class="controls">
+            <button class="success" style="background:#16a34a; font-weight: bold; font-size: 1.05rem;" onclick="startGame()">▶️ Mở Game</button>
+            <button class="danger" style="background:#dc2626; font-weight: bold; font-size: 1.05rem;" onclick="stopGame()">⏹️ Tắt Game</button>
             <button class="secondary" style="background:#2563eb; color:#fff; font-weight: bold;" onclick="switchSlot(0)">👤 Vào Slot 1 (CS 1 - TT)</button>
             <button class="success" onclick="triggerAutoLogin()">🔑 Tự Đăng Nhập (aaaaa / 123123)</button>
             <button class="success" style="background:#059669;" onclick="claimReward()">🎁 Nhận Thưởng / Đóng Popup</button>
@@ -526,6 +574,18 @@ app.get('/', (req, res) => {
         function refreshScreen() {
           gameImg.src = '/api/screenshot?t=' + Date.now();
           updateStatus();
+        }
+
+        async function startGame() {
+          await fetch('/api/start', { method: 'POST' });
+          setTimeout(refreshScreen, 1500);
+        }
+
+        async function stopGame() {
+          if (confirm('Bạn có chắc chắn muốn TẮT GAME (đóng trình duyệt Puppeteer hoàn toàn)?')) {
+            await fetch('/api/stop', { method: 'POST' });
+            setTimeout(refreshScreen, 500);
+          }
         }
 
         async function claimReward() {
@@ -752,7 +812,8 @@ async function startBot() {
     botStatus.lastCheck = new Date().toISOString();
     console.log('[BOT] Successfully loaded game page!');
 
-    setInterval(async () => {
+    if (keepAliveTimer) clearInterval(keepAliveTimer);
+    keepAliveTimer = setInterval(async () => {
       try {
         if (pageInstance && !pageInstance.isClosed()) {
           await autoLoginIfNeeded(pageInstance);
