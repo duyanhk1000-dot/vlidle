@@ -9,8 +9,8 @@ const GAME_URL = 'https://volamidle.pages.dev/';
 const COOKIES_PATH = path.join(__dirname, 'cookies.json');
 const STORAGE_PATH = path.join(__dirname, 'storage.json');
 
-const VIEWPORT_WIDTH = 640;
-const VIEWPORT_HEIGHT = 360;
+const VIEWPORT_WIDTH = 360;
+const VIEWPORT_HEIGHT = 640;
 
 app.use(express.json());
 
@@ -138,17 +138,17 @@ app.get('/api/screenshot', async (req, res) => {
       return res.send(screenshot);
     }
     const statusText = botStatus.error ? `Lỗi: ${botStatus.error}` : `Trạng thái: ${botStatus.status}`;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">
-      <rect width="640" height="360" fill="#0f172a"/>
-      <text x="320" y="150" font-family="sans-serif" font-size="20" fill="#38bdf8" text-anchor="middle" font-weight="bold">🎮 Võ Lâm Idle 24/7 Bot</text>
-      <text x="320" y="195" font-family="sans-serif" font-size="15" fill="#f8fafc" text-anchor="middle">⏳ Đang kết nối Trình duyệt Chrome...</text>
-      <text x="320" y="235" font-family="sans-serif" font-size="13" fill="#fbbf24" text-anchor="middle">${statusText}</text>
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
+      <rect width="360" height="640" fill="#0f172a"/>
+      <text x="180" y="280" font-family="sans-serif" font-size="20" fill="#38bdf8" text-anchor="middle" font-weight="bold">🎮 Võ Lâm Idle 24/7 Bot</text>
+      <text x="180" y="325" font-family="sans-serif" font-size="15" fill="#f8fafc" text-anchor="middle">⏳ Đang kết nối Trình duyệt Chrome...</text>
+      <text x="180" y="365" font-family="sans-serif" font-size="13" fill="#fbbf24" text-anchor="middle">${statusText}</text>
     </svg>`;
     res.contentType('image/svg+xml').send(svg);
   } catch (err) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">
-      <rect width="640" height="360" fill="#0f172a"/>
-      <text x="320" y="180" font-family="sans-serif" font-size="14" fill="#ef4444" text-anchor="middle">❌ Lỗi: ${err.message}</text>
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="640">
+      <rect width="360" height="640" fill="#0f172a"/>
+      <text x="180" y="320" font-family="sans-serif" font-size="14" fill="#ef4444" text-anchor="middle">❌ Lỗi: ${err.message}</text>
     </svg>`;
     res.contentType('image/svg+xml').send(svg);
   }
@@ -242,7 +242,7 @@ app.get('/', (req, res) => {
         h1 { font-size: 1.3rem; color: #38bdf8; display: flex; align-items: center; gap: 8px; }
         .badge { background: #22c55e; color: #000; font-weight: bold; padding: 4px 10px; borderRadius: 20px; font-size: 0.8rem; }
         .screen-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 15px; text-align: center; }
-        .img-container { position: relative; display: inline-block; width: 100%; max-width: 640px; margin-top: 10px; background: #000; border-radius: 8px; overflow: hidden; cursor: crosshair; min-height: 200px; }
+        .img-container { position: relative; display: inline-block; width: 100%; max-width: 360px; margin-top: 10px; background: #000; border-radius: 8px; overflow: hidden; cursor: crosshair; min-height: 200px; }
         .img-container img { width: 100%; height: auto; display: block; }
         .controls { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; justify-content: center; }
         button { background: #2563eb; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
@@ -298,7 +298,7 @@ app.get('/', (req, res) => {
         </div>
 
         <div class="screen-card">
-          <div class="hint">⚡ Nạp ảnh Mobile (640x360). Click trực tiếp lên ảnh để điều khiển game!</div>
+          <div class="hint">⚡ Nạp ảnh Mobile (360x640 Dọc). Click trực tiếp lên ảnh để điều khiển game!</div>
           <div class="img-container" onclick="handleClick(event)">
             <img id="gameScreen" src="/api/screenshot" alt="Game Screen Live">
           </div>
