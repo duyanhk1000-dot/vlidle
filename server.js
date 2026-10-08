@@ -665,7 +665,7 @@ app.get('/', (req, res) => {
 
         async function switchSlot(slot) {
           const name = slot === 0 ? 'Slot 1 (Chuyển sinh 1 - Lv 62)' : 'Slot 2 (Lv 200)';
-          if (confirm(`Bạn có chắc muốn chuyển sang ${name}?`)) {
+          if (confirm('Bạn có chắc muốn chuyển sang ' + name + '?')) {
             await fetch('/api/switch-slot', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
